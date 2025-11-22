@@ -1,58 +1,59 @@
 package org.delcom.app.services;
 
-import org.delcom.app.entities.CashFlow;
-import org.delcom.app.repositories.CashFlowRepository;
-import org.springframework.stereotype.Service;
-
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.delcom.app.entities.CashFlow;
+import org.delcom.app.repositories.CashFlowRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 public class CashFlowService {
-
     private final CashFlowRepository cashFlowRepository;
 
     public CashFlowService(CashFlowRepository cashFlowRepository) {
         this.cashFlowRepository = cashFlowRepository;
     }
 
-    public CashFlow createCashFlow(String type, String source, String label, Integer amount, String description) {
-        CashFlow cashFlow = new CashFlow(type, source, label, amount, description);
+    @Transactional
+    public CashFlow createCashFlow(UUID userId, String type, Double amount, String description, LocalDateTime date) {
+        CashFlow cashFlow = new CashFlow(userId, type, amount, description, date);
         return cashFlowRepository.save(cashFlow);
     }
 
-    public List<CashFlow> getAllCashFlows(String search) {
+    public List<CashFlow> getAllCashFlows(UUID userId, String search) {
         if (search != null && !search.trim().isEmpty()) {
-            return cashFlowRepository.findByKeyword(search);
+            return cashFlowRepository.findByKeyword(userId, search);
         }
-        return cashFlowRepository.findAll();
+        return cashFlowRepository.findAllByUserId(userId);
     }
 
-    public CashFlow getCashFlowById(UUID id) {
-        return cashFlowRepository.findById(id).orElse(null);
+    public CashFlow getCashFlowById(UUID userId, UUID id) {
+        return cashFlowRepository.findByUserIdAndId(userId, id).orElse(null);
     }
 
-    public List<String> getCashFlowLabels() {
-        return cashFlowRepository.findDistinctLabels();
-    }
-
-    public CashFlow updateCashFlow(UUID id, String type, String source, String label, Integer amount, String description) {
-        CashFlow existingCashFlow = getCashFlowById(id);
-        if (existingCashFlow == null) {
-            return null;
+    @Transactional
+    public CashFlow updateCashFlow(UUID userId, UUID id, String type, Double amount, String description, LocalDateTime date) {
+        CashFlow cashFlow = cashFlowRepository.findByUserIdAndId(userId, id).orElse(null);
+        if (cashFlow != null) {
+            cashFlow.setType(type);
+            cashFlow.setAmount(amount);
+            cashFlow.setDescription(description);
+            cashFlow.setDate(date);
+            return cashFlowRepository.save(cashFlow);
         }
-        existingCashFlow.setType(type);
-        existingCashFlow.setSource(source);
-        existingCashFlow.setLabel(label);
-        existingCashFlow.setAmount(amount);
-        existingCashFlow.setDescription(description);
-        return cashFlowRepository.save(existingCashFlow);
+        return null;
     }
 
-    public boolean deleteCashFlow(UUID id) {
-        if (!cashFlowRepository.existsById(id)) {
+    @Transactional
+    public boolean deleteCashFlow(UUID userId, UUID id) {
+        CashFlow cashFlow = cashFlowRepository.findByUserIdAndId(userId, id).orElse(null);
+        if (cashFlow == null) {
             return false;
         }
+
         cashFlowRepository.deleteById(id);
         return true;
     }

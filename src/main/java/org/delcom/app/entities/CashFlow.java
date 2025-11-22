@@ -1,6 +1,7 @@
 package org.delcom.app.entities;
 
 import jakarta.persistence.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -9,23 +10,24 @@ import java.util.UUID;
 public class CashFlow {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(generator = "UUID")
+    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
     private UUID id;
 
-    @Column(nullable = false)
-    private String type;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
-    @Column(nullable = false)
-    private String source;
+    @Column(name = "type", nullable = false)
+    private String type; // "INCOME" atau "EXPENSE"
 
-    @Column(nullable = false)
-    private String label;
+    @Column(name = "amount", nullable = false)
+    private Double amount;
 
-    @Column(nullable = false)
-    private Integer amount;
-
-    @Column(nullable = false)
+    @Column(name = "description", nullable = false)
     private String description;
+
+    @Column(name = "date", nullable = false)
+    private LocalDateTime date;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -33,43 +35,84 @@ public class CashFlow {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Default constructor for JPA
+    // Constructor
     public CashFlow() {
     }
 
-    // Constructor required by the test files
-    public CashFlow(String type, String source, String label, Integer amount, String description) {
+    public CashFlow(UUID userId, String type, Double amount, String description, LocalDateTime date) {
+        this.userId = userId;
         this.type = type;
-        this.source = source;
-        this.label = label;
         this.amount = amount;
+        this.description = description;
+        this.date = date;
+    }
+
+    // Getter & Setter
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public Double getAmount() {
+        return amount;
+    }
+
+    public void setAmount(Double amount) {
+        this.amount = amount;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
         this.description = description;
     }
 
+    public LocalDateTime getDate() {
+        return date;
+    }
+
+    public void setDate(LocalDateTime date) {
+        this.date = date;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    // ======= @PrePersist & @PreUpdate =======
     @PrePersist
-    public void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    public void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
-
-    // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
-    public String getLabel() { return label; }
-    public void setLabel(String label) { this.label = label; }
-    public Integer getAmount() { return amount; }
-    public void setAmount(Integer amount) { this.amount = amount; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

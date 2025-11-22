@@ -1,86 +1,158 @@
 package org.delcom.app.controllers;
 
-import org.delcom.app.configs.ApiResponse;
-import org.delcom.app.entities.CashFlow;
-import org.delcom.app.services.CashFlowService;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@RestController
-@RequestMapping("/api/cash-flows")
-public class CashFlowController {
+import org.delcom.app.configs.ApiResponse;
+import org.delcom.app.configs.AuthContext;
+import org.delcom.app.entities.CashFlow;
+import org.delcom.app.entities.User;
+import org.delcom.app.services.CashFlowService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
 
+@RestController
+@RequestMapping("/api/cashflows")
+public class CashFlowController {
     private final CashFlowService cashFlowService;
+
+    @Autowired
+    protected AuthContext authContext;
 
     public CashFlowController(CashFlowService cashFlowService) {
         this.cashFlowService = cashFlowService;
     }
 
-    private boolean isInvalid(CashFlow cf) {
-        return cf.getType() == null || cf.getType().isBlank() ||
-               cf.getSource() == null || cf.getSource().isBlank() ||
-               cf.getLabel() == null || cf.getLabel().isBlank() ||
-               cf.getAmount() == null || cf.getAmount() <= 0 ||
-               cf.getDescription() == null || cf.getDescription().isBlank();
-    }
-
+    // Menambahkan cash flow baru
+    // -------------------------------
     @PostMapping
-    public ApiResponse<Map<String, UUID>> createCashFlow(@RequestBody CashFlow cashFlow) {
-        if (isInvalid(cashFlow)) {
-            return new ApiResponse<>("fail", "Data tidak valid");
+    public ResponseEntity<ApiResponse<Map<String, UUID>>> createCashFlow(@RequestBody CashFlow reqCashFlow) {
+
+        if (reqCashFlow.getType() == null || reqCashFlow.getType().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type tidak valid", null));
+        } else if (!reqCashFlow.getType().equals("INCOME") && !reqCashFlow.getType().equals("EXPENSE")) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type harus INCOME atau EXPENSE", null));
+        } else if (reqCashFlow.getAmount() == null || reqCashFlow.getAmount() <= 0) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data amount tidak valid", null));
+        } else if (reqCashFlow.getDescription() == null || reqCashFlow.getDescription().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data description tidak valid", null));
+        } else if (reqCashFlow.getDate() == null) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data date tidak valid", null));
         }
-        CashFlow created = cashFlowService.createCashFlow(
-            cashFlow.getType(), cashFlow.getSource(), cashFlow.getLabel(),
-            cashFlow.getAmount(), cashFlow.getDescription()
-        );
-        return new ApiResponse<>("success", "Berhasil menambahkan data", Map.of("id", created.getId()));
+
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        CashFlow newCashFlow = cashFlowService.createCashFlow(authUser.getId(), reqCashFlow.getType(), 
+                reqCashFlow.getAmount(), reqCashFlow.getDescription(), reqCashFlow.getDate());
+        return ResponseEntity.ok(new ApiResponse<Map<String, UUID>>(
+                "success",
+                "Cash flow berhasil dibuat",
+                Map.of("id", newCashFlow.getId())));
     }
 
+    // Mendapatkan semua cash flow dengan opsi pencarian
+    // -------------------------------
     @GetMapping
-    public ApiResponse<Map<String, List<CashFlow>>> getAllCashFlows(@RequestParam(required = false) String search) {
-        List<CashFlow> cashFlows = cashFlowService.getAllCashFlows(search);
-        return new ApiResponse<>("success", "Berhasil mengambil data", Map.of("cash_flows", cashFlows));
+    public ResponseEntity<ApiResponse<Map<String, List<CashFlow>>>> getAllCashFlows(
+            @RequestParam(required = false) String search) {
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        List<CashFlow> cashFlows = cashFlowService.getAllCashFlows(authUser.getId(), search);
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Daftar cash flow berhasil diambil",
+                Map.of("cashflows", cashFlows)));
     }
 
+    // Mendapatkan cash flow berdasarkan ID
+    // -------------------------------
     @GetMapping("/{id}")
-    public ApiResponse<Map<String, CashFlow>> getCashFlowById(@PathVariable UUID id) {
-        CashFlow cashFlow = cashFlowService.getCashFlowById(id);
+    public ResponseEntity<ApiResponse<Map<String, CashFlow>>> getCashFlowById(@PathVariable UUID id) {
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
+        }
+        User authUser = authContext.getAuthUser();
+
+        CashFlow cashFlow = cashFlowService.getCashFlowById(authUser.getId(), id);
         if (cashFlow == null) {
-            return new ApiResponse<>("fail", "Data tidak ditemukan");
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
         }
-        return new ApiResponse<>("success", "Berhasil mengambil data", Map.of("cashFlow", cashFlow));
-    }
-    
-    @GetMapping("/labels")
-    public ApiResponse<Map<String, List<String>>> getCashFlowLabels() {
-        List<String> labels = cashFlowService.getCashFlowLabels();
-        return new ApiResponse<>("success", "Berhasil mengambil data", Map.of("labels", labels));
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Data cash flow berhasil diambil",
+                Map.of("cashflow", cashFlow)));
     }
 
+    // Memperbarui cash flow berdasarkan ID
+    // -------------------------------
     @PutMapping("/{id}")
-    public ApiResponse<CashFlow> updateCashFlow(@PathVariable UUID id, @RequestBody CashFlow cashFlow) {
-        if (isInvalid(cashFlow)) {
-            return new ApiResponse<>("fail", "Data tidak valid", null);
+    public ResponseEntity<ApiResponse<CashFlow>> updateCashFlow(@PathVariable UUID id, @RequestBody CashFlow reqCashFlow) {
+
+        if (reqCashFlow.getType() == null || reqCashFlow.getType().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type tidak valid", null));
+        } else if (!reqCashFlow.getType().equals("INCOME") && !reqCashFlow.getType().equals("EXPENSE")) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data type harus INCOME atau EXPENSE", null));
+        } else if (reqCashFlow.getAmount() == null || reqCashFlow.getAmount() <= 0) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data amount tidak valid", null));
+        } else if (reqCashFlow.getDescription() == null || reqCashFlow.getDescription().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data description tidak valid", null));
+        } else if (reqCashFlow.getDate() == null) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>("fail", "Data date tidak valid", null));
         }
-        CashFlow updated = cashFlowService.updateCashFlow(
-            id, cashFlow.getType(), cashFlow.getSource(), cashFlow.getLabel(),
-            cashFlow.getAmount(), cashFlow.getDescription()
-        );
-        if (updated == null) {
-            return new ApiResponse<>("fail", "Gagal memperbarui data, ID tidak ditemukan", null);
+
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
         }
-        return new ApiResponse<>("success", "Berhasil memperbarui data");
+        User authUser = authContext.getAuthUser();
+
+        CashFlow updatedCashFlow = cashFlowService.updateCashFlow(authUser.getId(), id, reqCashFlow.getType(),
+                reqCashFlow.getAmount(), reqCashFlow.getDescription(), reqCashFlow.getDate());
+        if (updatedCashFlow == null) {
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>("success", "Data cash flow berhasil diperbarui", null));
     }
 
+    // Menghapus cash flow berdasarkan ID
+    // -------------------------------
     @DeleteMapping("/{id}")
-    public ApiResponse<String> deleteCashFlow(@PathVariable UUID id) {
-        boolean deleted = cashFlowService.deleteCashFlow(id);
-        if (!deleted) {
-            return new ApiResponse<>("fail", "Gagal menghapus data, ID tidak ditemukan");
+    public ResponseEntity<ApiResponse<String>> deleteCashFlow(@PathVariable UUID id) {
+        // Validasi autentikasi
+        if (!authContext.isAuthenticated()) {
+            return ResponseEntity.status(403).body(new ApiResponse<>("fail", "User tidak terautentikasi", null));
         }
-        return new ApiResponse<>("success", "Berhasil menghapus data");
+        User authUser = authContext.getAuthUser();
+
+        boolean status = cashFlowService.deleteCashFlow(authUser.getId(), id);
+        if (!status) {
+            return ResponseEntity.status(404).body(new ApiResponse<>("fail", "Data cash flow tidak ditemukan", null));
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                "success",
+                "Data cash flow berhasil dihapus",
+                null));
     }
 }

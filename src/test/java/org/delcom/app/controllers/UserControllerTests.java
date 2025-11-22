@@ -1,4 +1,3 @@
-
 package org.delcom.app.controllers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -389,4 +388,3 @@ public class UserControllerTests {
         }
     }
 }
-    
